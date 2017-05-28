@@ -1,0 +1,6 @@
+main: rpvp.main.RisingPvP
+name: RisingPvP
+version: 1.0
+author: GoRoK
+commands:
+  punkte:
