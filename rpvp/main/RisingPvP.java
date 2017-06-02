@@ -2,18 +2,21 @@ package rpvp.main;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.entity.Player;
+import org.bukkit.entity.Silverfish;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scoreboard.DisplaySlot;
-import org.bukkit.scoreboard.Objective;
-import org.bukkit.scoreboard.Scoreboard;
-import org.bukkit.scoreboard.Team;
+import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scoreboard.*;
 import rpvp.commands.PointsCommand;
 import rpvp.handler.AttackListener;
 import rpvp.handler.JoinEvent;
+import rpvp.handler.RespawnEvent;
 
 import java.time.LocalDate;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Random;
 
 /**
  * Created by root on 15.05.2017.
@@ -24,13 +27,15 @@ public class RisingPvP extends JavaPlugin{
     private static RisingPvP instance;
     private MySQL sql;
 
+    public HashMap<Player, Silverfish> playerTags = new HashMap<>();
+
     public Scoreboard s;
 
 
     public void onEnable(){
         instance = this;
         loadPlugin();
-        s = Bukkit.getScoreboardManager().getMainScoreboard();
+        s = Bukkit.getScoreboardManager().getNewScoreboard();
         //registerHealth();
 
 
@@ -43,7 +48,7 @@ public class RisingPvP extends JavaPlugin{
         loadEvents();
         loadCommands();
         checkforReset();
-        registerHealth();
+       // registerHealth();
 
     }
 
@@ -57,11 +62,12 @@ public class RisingPvP extends JavaPlugin{
             getSql().reset();
 
             getConfig().set("Reset.Done", true);
-
+            saveConfig();
         }
 
-        if(cal.get(Calendar.DAY_OF_WEEK)  == Calendar.TUESDAY){
+        if(cal.get(Calendar.DAY_OF_WEEK)  != Calendar.MONDAY){
             getConfig().set("Reset.Done", false);
+            saveConfig();
         }
 
     }
@@ -88,28 +94,63 @@ public class RisingPvP extends JavaPlugin{
     public void loadEvents(){
         Bukkit.getServer().getPluginManager().registerEvents(new JoinEvent(), this);
         Bukkit.getServer().getPluginManager().registerEvents(new AttackListener(), this);
+        Bukkit.getServer().getPluginManager().registerEvents(new RespawnEvent(), this);
     }
 
-    public void registerHealth(){
-        Objective o = s.registerNewObjective("health", "health");
 
-        if(o != null){
+    public void registerHealth(Player p){
+
+        try{
+            Scoreboard board = p.getScoreboard();
+
+
+
+            Objective o = board.registerNewObjective("obj-"+p.getPlayerListName(), "health");
+
+            Team t = s.registerNewTeam(p.getDisplayName());
+            t.setPrefix(ChatColor.BLUE + "");
+
+
+            o.setDisplayName(ChatColor.RED + "❤ | " + ChatColor.DARK_AQUA + "Punkte " + sql.getPoints(p.getUniqueId().toString()) );
+            o.setDisplaySlot(DisplaySlot.BELOW_NAME);
+
+            p.setScoreboard(board);
+        }catch(IllegalArgumentException e){
+            p.getScoreboard().getObjective("obj-"+p.getPlayerListName()).unregister();
+            registerHealth(p);
             return;
+        }catch(Exception ex){
+            ex.printStackTrace();
         }
 
-        Team t = s.registerNewTeam("healthTeam");
-        t.setPrefix(ChatColor.BLUE + "");
+    }
 
+    protected void updatePlayer(Player updateAble){
 
-        o.setDisplayName(ChatColor.RED + "❤");
-        o.setDisplaySlot(DisplaySlot.BELOW_NAME);
-        Objective _o = s.registerNewObjective("points" , "points");
-        if(_o != null)
-            return;
+        new BukkitRunnable(){
 
+            @Override
+            public void run(){
+                try{
+
+                    Scoreboard board = updateAble.getScoreboard();
+                    Objective obj = board.getObjective("obj-" + updateAble.getPlayerListName());
+                    obj.setDisplayName(ChatColor.RED + "❤ | " + ChatColor.DARK_AQUA + "Punkte " +  sql.getPoints(updateAble.getUniqueId().toString()));
+
+                    updateAble.setScoreboard(board);
+
+                }catch(Exception ex){
+                    ex.printStackTrace();
+                }
+
+            }
+
+        }.runTaskTimer(this, 0, 20*30);
 
 
     }
+
+
 
 
     public void loadCommands(){
@@ -123,6 +164,8 @@ public class RisingPvP extends JavaPlugin{
             e.printStackTrace();
         }
     }
+
+
 
     public static RisingPvP getInstance(){
         return instance;
